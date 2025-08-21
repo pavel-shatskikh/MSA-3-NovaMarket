@@ -1,0 +1,46 @@
+@startuml NovaMarket Marketplace C2
+!includeurl https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title NovaMarket Marketplace – C2: Order History (упрощенная схема)
+
+Person(customer, "Покупатель", "Мобильное приложение")
+
+System_Boundary(nm, "NovaMarket Marketplace") {
+
+  Container(apigw, "API Gateway", "Spring Cloud API Gateway", "Routing")
+  Container(bff, "Mobile BFF", "Kotlin/Spring", "REST API for mobile clients")
+
+  Container(auth, "Auth Service", "Kotlin/Spring", "Auth")
+
+  Container(orderQuery, "Order History Query Service", "Kotlin/Spring", "CQRS projector + API Composition")
+  ContainerDb(readDb, "OrderHistory Read Store", "PostgreSQL", "Orders Read Model")
+
+  Container(invoice, "Invoice Service", "Kotlin/Spring", "Generates invoice PDFs, publishes links")
+  Container_Ext(s3, "Object Storage", "S3-compatible", "Stores invoice PDFs")
+  Container(review, "Review Service", "Kotlin/Spring", "Product reviews CRUD")
+  Container(cart, "Cart Service", "Kotlin/Spring", "Cart logic")
+
+  Container(kafka, "Event Bus", "Kafka", "Domain events")
+  Container(ordersvc, "Order Service", "Kotlin/Spring", "Publishes order events")
+  Container(pay, "Payment Service", "Kotlin/Spring", "Publishes payment events")
+  Container(delivery, "Delivery Service", "Kotlin/Spring", "Publishes delivery events")
+}
+
+Rel(customer, apigw, "HTTPS")
+Rel(apigw, bff, "Routes requests")
+Rel(bff, auth, "Validate tokens", "JWT")
+
+Rel(bff, orderQuery, "Get order history + details", "REST")
+Rel(orderQuery, readDb, "Read/Write projections", "SQL")
+
+Rel(bff, invoice, "Get receipt link", "REST")
+Rel(bff, review, "Leave/view review", "REST")
+Rel(bff, cart, "Reorder items", "REST")
+Rel(invoice, s3, "Store PDFs, presigned URL")
+
+Rel(ordersvc, kafka, "Order events")
+Rel(pay, kafka, "Payment events")
+Rel(delivery, kafka, "Delivery events")
+Rel(orderQuery, kafka, "Consume events → build read model items")
+
+@enduml

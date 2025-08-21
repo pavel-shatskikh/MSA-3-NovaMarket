@@ -1,0 +1,64 @@
+@startuml NovaMarket Marketplace C2
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_LEFT_RIGHT()
+
+Person(customer, "Покупатель", "Мобильное приложение")
+Person(seller, "Продавец", "Веб-кабинет")
+
+System_Boundary(nm, "NovaMarket Marketplace") {
+  Container(ingress, "API Gateway", "Spring Cloud API Gateway", "Routing")
+  Container(bff, "Mobile API (BFF)", "Kotlin/Spring", "Синхронные API для клиента")
+
+  Container(catalog, "Catalog Service", "Service+DB", "Товары/категории")
+  Container(search, "Search Service", "OpenSearch", "Поиск/фильтры")
+  Container(pricing, "Pricing Service", "Service+DB", "Цены/промо")
+  Container(inventory, "Inventory Service", "Service+DB", "Остатки/резерв")
+  Container(cart, "Cart Service", "Service+Redis", "Корзина (низкая латентность)")
+  Container(order, "Order Service", "Service+DB", "Заказы, Saga-хореография")
+  Container(payment, "Payment Service", "Service+DB", "Интеграция с PSP")
+  Container(fulfillment, "Fulfillment Service", "Service", "Интеграция с логистикой")
+  Container(notification, "Notification Service", "Service", "Push/SMS/Email")
+  Container(sellerSvc, "Seller Service", "Service+DB", "Кабинет продавца")
+  Container(review, "Review Service", "Service+DB", "Отзывы/рейтинги")
+  Container(analytics, "Analytics", "Service", "Аналитика по событиям")
+}
+
+System_Ext(psp, "Платёжный шлюз (PSP)", "Внешний")
+System_Ext(shipProv, "Логистический провайдер", "Внешний")
+System_Ext(pushProv, "Провайдер уведомлений", "Внешний")
+System_Ext(cdn, "CDN", "Медиа")
+
+Rel(customer, ingress, "HTTPS")
+Rel(ingress, bff, "HTTP")
+Rel(bff, catalog, "HTTP", "каталог/карточки")
+Rel(bff, search, "HTTP", "поиск")
+Rel(bff, pricing, "HTTP", "цены")
+Rel(bff, inventory, "HTTP", "наличие")
+Rel(bff, cart, "HTTP", "корзина")
+Rel(bff, order, "HTTP", "оформление/статусы")
+Rel(bff, review, "HTTP", "отзывы")
+Rel(seller, ingress, "HTTPS")
+Rel(ingress, sellerSvc, "HTTP")
+
+Rel(payment, psp, "HTTPS", "authorize/capture/refund")
+Rel(fulfillment, shipProv, "HTTPS/Webhook", "создание/обновления доставок")
+Rel(notification, pushProv, "HTTPS")
+Rel(catalog, cdn, "HTTPS", "медиа")
+
+Rel(order, inventory, "OrderCreated → [kafka]", "резерв товара")
+Rel(inventory, order, "InventoryReserved/Failed → [kafka]", "результат резерва")
+Rel(order, payment, "PaymentRequested → [kafka]", "начать оплату")
+Rel(payment, order, "PaymentSucceeded/Failed → [kafka]", "результат оплаты")
+Rel(order, fulfillment, "ShipmentRequested → [kafka]", "создать доставку")
+Rel(fulfillment, order, "ShipmentDispatched/Delivered/Failed → [kafka]", "статусы доставки")
+
+Rel(order, notification, "OrderCreated/OrderCanceled/OrderCompleted → [kafka]")
+Rel(payment, notification, "PaymentSucceeded/Failed → [kafka]")
+Rel(fulfillment, notification, "ShipmentDispatched/Delivered → [kafka]")
+
+Rel(order, analytics, "Order* → [kafka]")
+Rel(inventory, analytics, "Inventory* → [kafka]")
+Rel(payment, analytics, "Payment* → [kafka]")
+Rel(fulfillment, analytics, "Shipment* → [kafka]")
+
+@enduml

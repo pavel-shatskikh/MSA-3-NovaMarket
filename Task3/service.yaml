@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: task3
+  namespace: default
+  labels:
+    app: task3
+spec:
+  selector:
+    app: task3
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
