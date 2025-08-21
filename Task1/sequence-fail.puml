@@ -1,0 +1,47 @@
+@startuml
+title Сага оформления заказа — ошибки (хореография)
+
+queue "Event Bus (Kafka)" as Bus
+participant "Order" as Order
+participant "Inventory" as Inv
+participant "Payment" as Pay
+participant "Notification" as Notif
+
+== Недостаток товара ==
+Order -> Bus: OrderCreated
+Bus -> Inv: OrderCreated
+Inv -> Inv: tryReserve() -> OUT_OF_STOCK
+Inv -> Bus: **InventoryReservationFailed**
+Bus -> Order: InventoryReservationFailed
+Order -> Bus: **OrderCanceled**
+Bus -> Notif: OrderCanceled
+
+== Ошибка оплаты ==
+Order -> Bus: OrderCreated
+Bus -> Inv: OrderCreated
+Inv -> Bus: **InventoryReserved**
+Bus -> Order: InventoryReserved
+Order -> Bus: **PaymentPhaseStarted**
+Bus -> Pay: PaymentPhaseStarted
+Pay -> Pay: charge() -> FAIL
+Pay -> Bus: **PaymentFailed**
+Bus -> Order: PaymentFailed
+Order -> Bus: **OrderCanceled**
+Bus -> Inv: **ReservationCancellationNeeded**
+Inv -> Inv: cancelReservation()
+Inv -> Bus: **ReservationCanceled**
+Bus -> Notif: PaymentFailed / OrderCanceled
+
+== Таймаут оплаты ==
+Order -> Bus: OrderCreated
+Bus -> Inv: OrderCreated
+Inv -> Bus: **InventoryReserved**
+Bus -> Order: InventoryReserved
+Order -> Bus: **PaymentPhaseStarted**
+... время ...
+Bus -> Order: **PaymentTimedOut**
+Order -> Bus: **OrderCanceled**
+Bus -> Inv: **ReservationCancellationNeeded**
+Inv -> Bus: **ReservationCanceled**
+
+@enduml

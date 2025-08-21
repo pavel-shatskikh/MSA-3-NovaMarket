@@ -1,0 +1,41 @@
+@startuml
+title Сага оформления заказа — ок (хореография)
+
+actor Mobile as M
+participant "BFF" as BFF
+queue "Event Bus (Kafka)" as Bus
+participant "Order Service" as Order
+participant "Inventory Service" as Inv
+participant "Payment Service" as Pay
+participant "Fulfillment" as Ship
+participant "Notification" as Notif
+
+M -> BFF: POST /checkout
+BFF -> Order: createOrder()
+Order -> Order: TX: persist PENDING + outbox(OrderCreated)
+Order -> Bus: (CDC) publish **OrderCreated**
+
+Bus -> Inv: OrderCreated
+Inv -> Inv: tryReserve()
+Inv -> Bus: publish **InventoryReserved**
+
+Bus -> Order: InventoryReserved
+Order -> Bus: publish **PaymentPhaseStarted**
+
+Bus -> Pay: PaymentPhaseStarted
+Pay -> Pay: charge via PSP
+Pay -> Bus: publish **PaymentSucceeded**
+
+Bus -> Order: PaymentSucceeded
+Order -> Bus: publish **FulfillmentPhaseStarted**
+
+Bus -> Ship: FulfillmentPhaseStarted
+Ship -> Ship: createShipment at LSP
+Ship -> Bus: publish **ShipmentDispatched**
+
+Bus -> Order: ShipmentDispatched
+Order -> Bus: publish **OrderCompleted**
+
+Bus -> Notif: OrderCreated / PaymentSucceeded / ShipmentDispatched / OrderCompleted
+
+@enduml
